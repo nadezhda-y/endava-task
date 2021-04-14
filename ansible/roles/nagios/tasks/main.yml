@@ -1,0 +1,64 @@
+---
+  - name: Install Nagios
+    apt:  pkg={{ item }}
+          state=present
+    with_items:
+        - apache2
+        - apache2-dev
+        - nagios3
+        - nsca
+        - python3-passlib
+  - name: Copy additional docker plugin
+    get_url:
+      url: https://raw.githubusercontent.com/timdaman/check_docker/master/check_docker/check_docker.py
+      dest: /usr/local/bin/check_docker
+      mode: "a+rx"
+  - name: Set password for nagiosadmin
+    htpasswd:
+      path: /etc/nagios3/htpasswd.users
+      name: nagiosadmin
+      password: 'Password1'
+  - name: Delete all cfg files
+    file:
+      path: /etc/nagios3/conf.d
+      state: absent
+  - name: Create NAGIOS conf.d directory if it does not exist
+    file:
+      path: /etc/nagios3/conf.d
+      state: directory
+      mode: '0755'      
+  - name: Copy cfg configuration files
+    copy: 
+      src={{ item }} 
+      dest=/etc/nagios3/conf.d/
+    with_fileglob:
+      - nagios/files/custom/*.cfg   
+  - name: Add a pointer to the /etc/nagios/conf.d folder in nagios.cfg
+    lineinfile:
+      path: /etc/nagios3/nagios.cfg
+      line: cfg_dir=/etc/nagios3/conf.d
+  - name: Replace the external commands
+    replace:
+      path: /etc/nagios3/nagios.cfg
+      regexp: "^check_external_commands=0$"
+      replace: "check_external_commands=1"
+  - name: Add nagios in docker,sudo groups
+    user:
+      name: nagios
+      groups: sudo,nagios,docker
+      append: yes
+  - name: Add nagios in docker,sudo groups
+    user:
+      name: docker
+      groups: nagios
+      append: yes 
+  - name: Enable and start NAGIOS
+    service:
+      name: nagios3
+      state: restarted
+      enabled: true
+  - name: Enable and start HTTP
+    service:
+      name: apache2
+      state: restarted
+      enabled: true
